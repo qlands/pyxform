@@ -13,7 +13,7 @@ from collections import Counter
 
 from pyxform import aliases, constants
 from pyxform.errors import PyXFormError
-from pyxform.utils import basestring, is_valid_xml_tag, unicode
+from pyxform.utils import basestring, is_valid_xml_tag, unicode, default_is_dynamic
 from pyxform.xls2json_backends import csv_to_dict, xls_to_dict
 
 SMART_QUOTES = {"\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"'}
@@ -299,7 +299,11 @@ def process_range_question_type(row):
 
 
 def workbook_to_json(
-    workbook_dict, form_name=None, default_language="default", warnings=None
+    workbook_dict,
+    form_name=None,
+    fallback_form_name=None,
+    default_language="default",
+    warnings=None,
 ):
     """
     workbook_dict -- nested dictionaries representing a spreadsheet.
@@ -388,7 +392,7 @@ def workbook_to_json(
         )
 
     # Here we create our json dict root with default settings:
-    id_string = settings.get(constants.ID_STRING, form_name)
+    id_string = settings.get(constants.ID_STRING, fallback_form_name)
     sms_keyword = settings.get(constants.SMS_KEYWORD, id_string)
     json_dict = {
         constants.TYPE: constants.SURVEY,
@@ -494,34 +498,28 @@ def workbook_to_json(
         list_name_choices = [option.get("name") for option in options]
         if len(list_name_choices) != len(set(list_name_choices)):
             duplicate_setting = settings.get("allow_choice_duplicates")
-            if not duplicate_setting:
-                raise PyXFormError(
-                    "There does not seem to be"
-                    " a `allow_choice_duplicates`"
-                    " column header defined in your settings sheet."
-                    " You must have set `allow_choice_duplicates`"
-                    " setting in your settings sheet"
-                    " to have duplicate choice list names"
-                    " in your choices sheet"
-                )  # noqa
             for k, v in Counter(list_name_choices).items():
                 if v > 1:
-                    if duplicate_setting and duplicate_setting.capitalize() != "Yes":
-                        result = [
+                    if not duplicate_setting or duplicate_setting.capitalize() != "Yes":
+                        choice_duplicates = [
                             item
                             for item, count in Counter(list_name_choices).items()
                             if count > 1
                         ]
-                        choice_duplicates = " ".join(result)
 
                         if choice_duplicates:
                             raise PyXFormError(
-                                "On the choices sheet the choice list name"
-                                " '{}' occurs more than once."
-                                " You must have set `allow_choice_duplicates`"
-                                " setting in your settings sheet"
-                                " for this to be a valid measure".format(
-                                    choice_duplicates
+                                "The name column for the '{}' choice list contains these duplicates: {}. Duplicate names "
+                                "will be impossible to identify in analysis unless a previous value in a cascading "
+                                "select differentiates them. If this is intentional, you can set the "
+                                "allow_choice_duplicates setting to 'yes'. Read more: https://xlsform.org/#choice-names.".format(
+                                    list_name,
+                                    ", ".join(
+                                        [
+                                            "'{}'".format(dupe)
+                                            for dupe in choice_duplicates
+                                        ]
+                                    ),
                                 )
                             )  # noqa
 
@@ -591,6 +589,8 @@ def workbook_to_json(
     # Rows from the survey sheet that should be nested in meta
     survey_meta = []
 
+    repeat_behavior_warning_added = False
+    dynamic_default_warning_added = False
     for row in survey_sheet:
         row_number += 1
         if stack[-1] is not None:
@@ -618,6 +618,19 @@ def workbook_to_json(
         # Get question type
         question_type = row.get(constants.TYPE)
         question_name = row.get(constants.NAME)
+
+        question_default = row.get("default")
+        if (
+            default_is_dynamic(question_default, question_type)
+            and not dynamic_default_warning_added
+        ):
+            warnings.append(
+                "This form definition contains dynamic defaults. Not all "
+                "form filling software and versions support dynamic defaults "
+                "so you should test the form with the software version you "
+                "plan to use."
+            )
+            dynamic_default_warning_added = True
 
         if not question_type:
             # if name and label are also missing,
@@ -652,6 +665,8 @@ def workbook_to_json(
                     constants.LOCATION_MIN_INTERVAL,
                     constants.LOCATION_MAX_AGE,
                     constants.TRACK_CHANGES,
+                    constants.IDENTIFY_USER,
+                    constants.TRACK_CHANGES_REASONS,
                 ],
             )
 
@@ -671,6 +686,37 @@ def workbook_to_json(
                             "odk:"
                             + constants.TRACK_CHANGES: parameters[
                                 constants.TRACK_CHANGES
+                            ]
+                        }
+                    )
+
+            if constants.TRACK_CHANGES_REASONS in parameters.keys():
+                if parameters[constants.TRACK_CHANGES_REASONS] != "on-form-edit":
+                    raise PyXFormError(
+                        constants.TRACK_CHANGES_REASONS + " must be set to on-form-edit"
+                    )
+                else:
+                    new_dict["bind"] = new_dict.get("bind", {})
+                    new_dict["bind"].update(
+                        {"odk:" + constants.TRACK_CHANGES_REASONS: "on-form-edit"}
+                    )
+
+            if constants.IDENTIFY_USER in parameters.keys():
+                if (
+                    parameters[constants.IDENTIFY_USER] != "true"
+                    and parameters[constants.IDENTIFY_USER] != "false"
+                ):
+                    raise PyXFormError(
+                        constants.IDENTIFY_USER + " must be set to true or false: "
+                        "'%s' is an invalid value" % parameters[constants.IDENTIFY_USER]
+                    )
+                else:
+                    new_dict["bind"] = new_dict.get("bind", {})
+                    new_dict["bind"].update(
+                        {
+                            "odk:"
+                            + constants.IDENTIFY_USER: parameters[
+                                constants.IDENTIFY_USER
                             ]
                         }
                     )
@@ -859,6 +905,20 @@ def workbook_to_json(
                 # until an end command is encountered.
                 control_type = aliases.control[parse_dict["type"]]
                 control_name = question_name
+
+                if (
+                    control_type == constants.REPEAT
+                    and not repeat_behavior_warning_added
+                ):
+                    warnings.append(
+                        "Repeat behavior has changed. Previously, some clients like "
+                        "ODK Collect prompted users to add the first repeat. Now, "
+                        "the user will only be prompted to add repeats after the first "
+                        "one. Representing 0 repetitions will require changing the form "
+                        "design. Read more at http://xlsform.org#representing-zero-repeats."
+                    )
+                    repeat_behavior_warning_added = True
+
                 new_json_dict = row.copy()
                 new_json_dict[constants.TYPE] = control_type
                 child_list = list()
@@ -1123,6 +1183,7 @@ def workbook_to_json(
                         new_json_dict["itemset"] = list_name
                         json_dict["choices"] = choices
                         if choices.get(list_name):
+                            new_json_dict["list_name"] = list_name
                             new_json_dict[constants.CHOICES] = choices[list_name]
                 elif (
                     "randomize" in parameters.keys()
@@ -1133,6 +1194,7 @@ def workbook_to_json(
                 elif file_extension in [".csv", ".xml"]:
                     new_json_dict["itemset"] = list_name
                 else:
+                    new_json_dict["list_name"] = list_name
                     new_json_dict[constants.CHOICES] = choices[list_name]
 
                 # Code to deal with table_list appearance flags
@@ -1302,7 +1364,11 @@ def get_filename(path):
 
 
 def parse_file_to_json(
-    path, default_name=None, default_language="default", warnings=None, file_object=None
+    path,
+    default_name="data",
+    default_language="default",
+    warnings=None,
+    file_object=None,
 ):
     """
     A wrapper for workbook_to_json
@@ -1310,9 +1376,10 @@ def parse_file_to_json(
     if warnings is None:
         warnings = []
     workbook_dict = parse_file_to_workbook_dict(path, file_object)
-    if default_name is None:
-        default_name = unicode(get_filename(path))
-    return workbook_to_json(workbook_dict, default_name, default_language, warnings)
+    fallback_form_name = unicode(get_filename(path))
+    return workbook_to_json(
+        workbook_dict, default_name, fallback_form_name, default_language, warnings
+    )
 
 
 def organize_by_values(dict_list, key):
@@ -1392,7 +1459,7 @@ class SurveyReader(SpreadsheetReader):
     based object is created then a to_json_dict function is called on it.
     """
 
-    def __init__(self, path_or_file):
+    def __init__(self, path_or_file, default_name=None):
         if isinstance(path_or_file, basestring):
             self._file_object = None
             path = path_or_file
@@ -1402,7 +1469,10 @@ class SurveyReader(SpreadsheetReader):
 
         self._warnings = []
         self._dict = parse_file_to_json(
-            path, warnings=self._warnings, file_object=self._file_object
+            path,
+            default_name=default_name,
+            warnings=self._warnings,
+            file_object=self._file_object,
         )
         self._path = path
 
@@ -1469,6 +1539,7 @@ if __name__ == "__main__":
         path = sys.argv[1]
 
     warnings = []
+
     json_dict = parse_file_to_json(path, warnings=warnings)
     print_pyobj_to_json(json_dict)
 

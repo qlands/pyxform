@@ -15,7 +15,7 @@ from pyxform.utils import node
 class XMLTests(utils.XFormTestCase):
     def setUp(self):
         self.survey = create_survey_from_xls(
-            utils.path_to_text_fixture("yes_or_no_question.xls")
+            utils.path_to_text_fixture("yes_or_no_question.xls"), "yes_or_no_question"
         )
 
     def test_to_xml(self):
@@ -25,10 +25,11 @@ class XMLTests(utils.XFormTestCase):
     xmlns:h="http://www.w3.org/1999/xhtml"
     xmlns:jr="http://openrosa.org/javarosa"
     xmlns:orx="http://openrosa.org/xforms"
+    xmlns:odk="http://www.opendatakit.org/xforms"
     xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <h:head>
     <h:title>yes_or_no_question</h:title>
-    <model>
+    <model odk:xforms-version="1.0.0">
       <itext>
         <translation lang="english">
           <text id="/yes_or_no_question/good_day:label">
@@ -50,7 +51,7 @@ class XMLTests(utils.XFormTestCase):
           </meta>
         </yes_or_no_question>
       </instance>
-      <bind nodeset="/yes_or_no_question/good_day" type="select1"/>
+      <bind nodeset="/yes_or_no_question/good_day" type="string"/>
       <bind jr:preload="uid"
         nodeset="/yes_or_no_question/meta/instanceID"
         readonly="true()" type="string"/>

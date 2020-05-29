@@ -32,6 +32,8 @@ class Section(SurveyElement):
         """
         Creates an xml representation of the section
         """
+        append_template = kwargs.pop("append_template", False)
+
         attributes = {}
         attributes.update(kwargs)
         attributes.update(self.get("instance", {}))
@@ -40,12 +42,30 @@ class Section(SurveyElement):
         for key, value in attributes.items():
             attributes[key] = survey.insert_xpaths(value, self)
         result = node(self.name, **attributes)
+
         for child in self.children:
+            repeating_template = None
             if child.get("flat"):
                 for grandchild in child.xml_instance_array():
                     result.appendChild(grandchild)
             elif isinstance(child, ExternalInstance):
                 continue
+            else:
+                if isinstance(child, RepeatingSection) and not append_template:
+                    append_template = not append_template
+                    repeating_template = child.generate_repeating_template()
+                result.appendChild(child.xml_instance(append_template=append_template))
+            if append_template and repeating_template:
+                append_template = not append_template
+                result.insertBefore(repeating_template, result._get_lastChild())
+        return result
+
+    def generate_repeating_template(self, **kwargs):
+        attributes = {"jr:template": ""}
+        result = node(self.name, **attributes)
+        for child in self.children:
+            if isinstance(child, RepeatingSection):
+                result.appendChild(child.template_instance())
             else:
                 result.appendChild(child.xml_instance())
         return result
@@ -97,18 +117,36 @@ class RepeatingSection(Section):
         for n in Section.xml_control(self):
             repeat_node.appendChild(n)
 
+        setvalue_nodes = self._get_setvalue_nodes_for_dynamic_defaults()
+
+        for setvalue_node in setvalue_nodes:
+            repeat_node.appendChild(setvalue_node)
+
         label = self.xml_label()
         if label:
             return node("group", self.xml_label(), repeat_node, ref=self.get_xpath())
         return node("group", repeat_node, ref=self.get_xpath(), **self.control)
 
+    # Get setvalue nodes for all descendants of this repeat that have dynamic defaults and aren't nested in other repeats.
+    def _get_setvalue_nodes_for_dynamic_defaults(self):
+        setvalue_nodes = []
+        self._dynamic_defaults_helper(self, setvalue_nodes)
+        return setvalue_nodes
+
+    def _dynamic_defaults_helper(self, current, nodes):
+        for e in current.children:
+            if e.type != "repeat":  # let nested repeats handle their own defaults
+                dynamic_default = e.get_setvalue_node_for_dynamic_default(
+                    in_repeat=True
+                )
+                if dynamic_default:
+                    nodes.append(dynamic_default)
+                self._dynamic_defaults_helper(e, nodes)
+
     # I'm anal about matching function signatures when overriding a function,
     # but there's no reason for kwargs to be an argument
-    def xml_instance(self, **kwargs):
-        kwargs = {"jr:template": ""}  # It might make more sense to add this
-        #                               as a child on initialization
-
-        return super(RepeatingSection, self).xml_instance(**kwargs)
+    def template_instance(self, **kwargs):
+        return super(RepeatingSection, self).generate_repeating_template(**kwargs)
 
 
 class GroupedSection(Section):

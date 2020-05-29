@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
-<h:html xmlns="http://www.w3.org/2002/xforms" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:h="http://www.w3.org/1999/xhtml" xmlns:jr="http://openrosa.org/javarosa" xmlns:orx="http://openrosa.org/xforms" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+<h:html xmlns="http://www.w3.org/2002/xforms" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:h="http://www.w3.org/1999/xhtml" xmlns:jr="http://openrosa.org/javarosa" xmlns:orx="http://openrosa.org/xforms" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:odk="http://www.opendatakit.org/xforms">
   <h:head>
     <h:title>Spec test</h:title>
-    <model>
+    <model odk:xforms-version="1.0.0">
       <submission action="https://example-odk-aggregate.appspot.com/submission" base64RsaPublicKey="MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAo93+Dgn3iDleC9XMTDH7ez1MOm/BOt287DgkldNkdvrtdC4oUegx3N8Say9tq47k2EOzeLYkezVnKdtserx+g/+R6pDIOS66bwbH+HoslDEUaZRZ47EipSGC1JhtOp/nQGQCsdVc5q/fPvw8d2rLLi+PQUZPBOiBxUo9h/CFc41hl/quUELmylSdL4O06OAP8OCEDA+tl0C2Ik+uCYMDJLD4m7YVbkV7jJXjtILj+GW+noLriFMRsgg7WKQe2j9fw5+v46nzhokOnDnHh+yGwQMfs/B0jfFAgXllLNjIPlXQf2UVzuxEax6wLCyqUXMIjCPSNfnzDRgFB4Qw3QbJCwIDAQAB" method="post"/>
       <itext>
         <translation default="true()" lang="default">
@@ -248,21 +248,15 @@
           <text id="/xlsform_spec_test/everything/calculate_test_output:label">
             <value>-</value>
           </text>
-          <text id="/xlsform_spec_test/everything/display_image_test:label">
-            <value form="image">jr://images/-</value>
-          </text>
+          <text id="/xlsform_spec_test/everything/display_image_test:label"/>
           <text id="/xlsform_spec_test/everything/autocomplete_test:label">
             <value>-</value>
           </text>
           <text id="/xlsform_spec_test/everything/repeat_test/labeled_select_group/list-nolabel-test:label">
             <value>-</value>
           </text>
-          <text id="/xlsform_spec_test/everything/repeat_test/compact-2-test/b:label">
-            <value form="image">jr://images/-</value>
-          </text>
-          <text id="/xlsform_spec_test/everything/repeat_test/compact-test/b:label">
-            <value form="image">jr://images/-</value>
-          </text>
+          <text id="/xlsform_spec_test/everything/repeat_test/compact-2-test/b:label"/>
+          <text id="/xlsform_spec_test/everything/repeat_test/compact-test/b:label"/>
           <text id="/xlsform_spec_test/everything/time_test:label">
             <value>-</value>
           </text>
@@ -273,9 +267,7 @@
             <value>是</value>
           </text>
           <text id="/xlsform_spec_test/everything/text_image_audio_video_test:label">
-            <value form="image">jr://images/-</value>
             <value form="audio">jr://audio/chinese_audio.wav</value>
-            <value form="video">jr://video/-</value>
             <value>您好</value>
           </text>
           <text id="/xlsform_spec_test/skip_to_end:label">
@@ -305,9 +297,7 @@
           <text id="/xlsform_spec_test/launch:label">
             <value>-</value>
           </text>
-          <text id="/xlsform_spec_test/everything/repeat_test/compact-test/a:label">
-            <value form="image">jr://images/-</value>
-          </text>
+          <text id="/xlsform_spec_test/everything/repeat_test/compact-test/a:label"/>
           <text id="/xlsform_spec_test/everything/number_label:hint">
             <value>-</value>
           </text>
@@ -359,9 +349,7 @@
           <text id="/xlsform_spec_test/everything/repeat_test/group_test/required_text:label">
             <value>-</value>
           </text>
-          <text id="/xlsform_spec_test/everything/repeat_test/compact-2-test/a:label">
-            <value form="image">jr://images/-</value>
-          </text>
+          <text id="/xlsform_spec_test/everything/repeat_test/compact-2-test/a:label"/>
           <text id="/xlsform_spec_test/everything/my_name:label">
             <value>-</value>
           </text>
@@ -457,9 +445,7 @@
           <text id="/xlsform_spec_test/everything/repeat_test/labeled_select_group/list-nolabel-test:label">
             <value>list-nolabel-test</value>
           </text>
-          <text id="/xlsform_spec_test/everything/repeat_test/compact-2-test/b:label">
-            <value form="image">jr://images/-</value>
-          </text>
+          <text id="/xlsform_spec_test/everything/repeat_test/compact-2-test/b:label"/>
           <text id="/xlsform_spec_test/everything/note_test:label">
             <value>note_test</value>
           </text>
@@ -473,8 +459,6 @@
           </text>
           <text id="/xlsform_spec_test/everything/text_image_audio_video_test:label">
             <value form="image">jr://images/img_test_2.jpg</value>
-            <value form="audio">jr://audio/-</value>
-            <value form="video">jr://video/-</value>
             <value>text_image_audio_video_test</value>
           </text>
           <text id="/xlsform_spec_test/skip_to_end:label">
@@ -498,18 +482,14 @@
           <text id="/xlsform_spec_test/launch:label">
             <value>This launches a fictional application to get an integer result.</value>
           </text>
-          <text id="/xlsform_spec_test/everything/repeat_test/compact-test/a:label">
-            <value form="image">jr://images/-</value>
-          </text>
+          <text id="/xlsform_spec_test/everything/repeat_test/compact-test/a:label"/>
           <text id="/xlsform_spec_test/everything/number_label:hint">
             <value>-</value>
           </text>
           <text id="/xlsform_spec_test/everything/video_test:label">
             <value>video_test</value>
           </text>
-          <text id="/xlsform_spec_test/everything/repeat_test/compact-2-test/a:label">
-            <value form="image">jr://images/-</value>
-          </text>
+          <text id="/xlsform_spec_test/everything/repeat_test/compact-2-test/a:label"/>
           <text id="/xlsform_spec_test/everything/repeat_test/labeled_select_group/list-nolabel-test/no:label">
             <value>-</value>
           </text>
@@ -587,14 +567,10 @@
           <text id="/xlsform_spec_test/everything/acknowledge_test:label">
             <value>acknowledge_test</value>
           </text>
-          <text id="/xlsform_spec_test/everything/display_image_test:label">
-            <value form="image">jr://images/-</value>
-          </text>
+          <text id="/xlsform_spec_test/everything/display_image_test:label"/>
           <text id="/xlsform_spec_test/everything/invalid_variable:label">
             <value>Your name is <output value=" /xlsform_spec_test/everything/my_name "/></value></text>
-          <text id="/xlsform_spec_test/everything/repeat_test/compact-test/b:label">
-            <value form="image">jr://images/-</value>
-          </text>
+          <text id="/xlsform_spec_test/everything/repeat_test/compact-test/b:label"/>
           <text id="/xlsform_spec_test/everything/a_integer:label">
             <value>a integer</value>
           </text>
@@ -624,6 +600,22 @@
             <a_decimal/>
             <repeat_test_count/>
             <repeat_test jr:template="">
+              <group_test>
+                <required_text/>
+                <select_multiple_test/>
+              </group_test>
+              <labeled_select_group>
+                <label-test/>
+                <list-nolabel-test/>
+              </labeled_select_group>
+              <name>
+                <reserved_name_for_field_list_labels_25/>
+                <table_list_question/>
+              </name>
+              <compact-test/>
+              <compact-2-test/>
+            </repeat_test>
+            <repeat_test>
               <group_test>
                 <required_text/>
                 <select_multiple_test/>
@@ -675,7 +667,7 @@
           </meta>
         </xlsform_spec_test>
       </instance>
-      <bind nodeset="/xlsform_spec_test/skip_to_end" type="select1"/>
+      <bind nodeset="/xlsform_spec_test/skip_to_end" type="string"/>
       <bind nodeset="/xlsform_spec_test/everything" relevant="not(selected( /xlsform_spec_test/skip_to_end , 'yes'))"/>
       <bind nodeset="/xlsform_spec_test/everything/my_name" type="string"/>
       <bind nodeset="/xlsform_spec_test/everything/invalid_variable" readonly="true()" type="string"/>
@@ -684,19 +676,19 @@
       <bind nodeset="/xlsform_spec_test/everything/number_label" readonly="true()" type="string"/>
       <bind nodeset="/xlsform_spec_test/everything/text_image_audio_video_test" type="string"/>
       <bind nodeset="/xlsform_spec_test/everything/display_image_test" readonly="true()" type="string"/>
-      <bind nodeset="/xlsform_spec_test/everything/autocomplete_test" type="select1"/>
-      <bind nodeset="/xlsform_spec_test/everything/autocomplete_chars_test" type="select1"/>
+      <bind nodeset="/xlsform_spec_test/everything/autocomplete_test" type="string"/>
+      <bind nodeset="/xlsform_spec_test/everything/autocomplete_chars_test" type="string"/>
       <bind nodeset="/xlsform_spec_test/everything/a_integer" type="int"/>
       <bind constraint=". &lt;=  /xlsform_spec_test/everything/a_integer " nodeset="/xlsform_spec_test/everything/a_decimal" type="decimal"/>
       <bind calculate="2" nodeset="/xlsform_spec_test/everything/repeat_test_count" readonly="true()" type="string"/>
       <bind jr:requiredMsg="Custom required message." nodeset="/xlsform_spec_test/everything/repeat_test/group_test/required_text" required="true()" type="string"/>
-      <bind constraint="not(selected(., 'yes') and selected (., 'no'))" jr:constraintMsg="jr:itext('/xlsform_spec_test/everything/repeat_test/group_test/select_multiple_test:jr:constraintMsg')" nodeset="/xlsform_spec_test/everything/repeat_test/group_test/select_multiple_test" required="false()" type="select"/>
-      <bind nodeset="/xlsform_spec_test/everything/repeat_test/labeled_select_group/label-test" type="select1"/>
-      <bind nodeset="/xlsform_spec_test/everything/repeat_test/labeled_select_group/list-nolabel-test" required="true()" type="select1"/>
-      <bind nodeset="/xlsform_spec_test/everything/repeat_test/name/reserved_name_for_field_list_labels_25" type="select1"/>
-      <bind nodeset="/xlsform_spec_test/everything/repeat_test/name/table_list_question" type="select1"/>
-      <bind nodeset="/xlsform_spec_test/everything/repeat_test/compact-test" type="select1"/>
-      <bind nodeset="/xlsform_spec_test/everything/repeat_test/compact-2-test" type="select1"/>
+      <bind constraint="not(selected(., 'yes') and selected (., 'no'))" jr:constraintMsg="jr:itext('/xlsform_spec_test/everything/repeat_test/group_test/select_multiple_test:jr:constraintMsg')" nodeset="/xlsform_spec_test/everything/repeat_test/group_test/select_multiple_test" required="false()" type="string"/>
+      <bind nodeset="/xlsform_spec_test/everything/repeat_test/labeled_select_group/label-test" type="string"/>
+      <bind nodeset="/xlsform_spec_test/everything/repeat_test/labeled_select_group/list-nolabel-test" required="true()" type="string"/>
+      <bind nodeset="/xlsform_spec_test/everything/repeat_test/name/reserved_name_for_field_list_labels_25" type="string"/>
+      <bind nodeset="/xlsform_spec_test/everything/repeat_test/name/table_list_question" type="string"/>
+      <bind nodeset="/xlsform_spec_test/everything/repeat_test/compact-test" type="string"/>
+      <bind nodeset="/xlsform_spec_test/everything/repeat_test/compact-2-test" type="string"/>
       <bind nodeset="/xlsform_spec_test/everything/acknowledge_test" type="string"/>
       <bind nodeset="/xlsform_spec_test/everything/date_test" type="date"/>
       <bind nodeset="/xlsform_spec_test/everything/time_test" type="time"/>

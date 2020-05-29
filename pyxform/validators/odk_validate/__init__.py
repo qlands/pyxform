@@ -3,7 +3,7 @@
 odk_validate.py
 A python wrapper around ODK Validate
 """
-from __future__ import print_function
+from __future__ import print_function, unicode_literals
 
 import logging
 import os
@@ -66,9 +66,6 @@ def check_java_version():
         )
     except OSError as os_error:
         stderr = str(os_error)
-    # convert string to unicode for python2
-    if sys.version_info.major < 3:
-        stderr = stderr.strip().decode("utf-8")
     if "java version" not in stderr and "openjdk version" not in stderr:
         raise EnvironmentError("pyxform odk validate dependency: java not found")
     # extract version number from version string
@@ -76,7 +73,12 @@ def check_java_version():
     # version number is usually inside double-quotes.
     # Using regex to find that in the string
     java_version = re.findall(r"\"(.+?)\"", java_version_str)[0]
-    major, minor, _ = java_version.split(".")
+    if "." in java_version:
+        major, minor, _ = java_version.split(".")
+    elif "-" in java_version:
+        major, minor = int(java_version.split("-")[0]), 0
+    else:
+        major, minor = int(java_version), 0
     if not ((int(major) == 1 and int(minor) >= 8) or int(major) >= 8):
         raise EnvironmentError(
             "pyxform odk validate dependency: " "java 8 or newer version not found"
@@ -107,8 +109,7 @@ def check_xform(path_to_xform):
     else:
         if returncode > 0:  # Error invalid
             raise ODKValidateError(
-                b"ODK Validate Errors:\n"
-                + ErrorCleaner.odk_validate(stderr).encode("utf-8")
+                "ODK Validate Errors:\n" + ErrorCleaner.odk_validate(stderr)
             )
         elif returncode == 0:
             if stderr:

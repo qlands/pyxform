@@ -101,9 +101,11 @@ def node(*args, **kwargs):
     unicode_args = [u for u in args if type(u) == unicode]
     assert len(unicode_args) <= 1
     parsed_string = False
-    # kwargs is an xml attribute dictionary,
-    # here we convert it to a xml.dom.minidom.Element
-    for k, v in iter(kwargs.items()):
+
+    # Convert the kwargs xml attribute dictionary to a xml.dom.minidom.Element. Sort the
+    # attributes to guarantee a consistent order across Python versions.
+    # See pyxform_test_case.reorder_attributes for details.
+    for k, v in iter(sorted(kwargs.items())):
         if k in blocked_attributes:
             continue
         if k == "toParseString":
@@ -234,3 +236,34 @@ def get_languages_with_bad_tags(languages):
         ):
             languages_with_bad_tags.append(lang)
     return languages_with_bad_tags
+
+
+def default_is_dynamic(element_default, element_type=None):
+    """
+    Returns true if the default value is a dynamic value.
+
+    Dynamic value for now is defined as:
+    * Contains arithmetic operator, including 'div' and 'mod' (except '-' for 'date' type).
+    * Contains brackets, parentheses or braces.
+    """
+    if not isinstance(element_default, basestring):
+        return False
+
+    dynamic_markers = {
+        " mod ",
+        " div ",
+        "*",
+        "|",
+        "+",
+        "-",
+        "[",
+        "]",
+        "{",
+        "}",
+        "(",
+        ")",
+    }
+    if element_type is not None and element_type == "date":
+        dynamic_markers.remove("-")
+
+    return any(s in element_default for s in dynamic_markers)

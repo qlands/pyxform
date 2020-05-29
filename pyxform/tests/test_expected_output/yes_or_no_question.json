@@ -4,7 +4,7 @@
     "sms_keyword": "yes_or_no_question", 
     "default_language": "default", 
     "id_string": "yes_or_no_question", 
-    "type": "survey", 
+    "type": "survey",  
     "children": [
         {
             "choices": [
@@ -22,7 +22,8 @@
                 }
             ], 
             "type": "select one", 
-            "name": "good_day", 
+            "name": "good_day",
+            "list_name": "yes_or_no",
             "parameters": {},
             "label": {
                 "english": "have you had a good day today?"

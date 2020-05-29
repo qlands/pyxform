@@ -31,7 +31,7 @@ class PyxformTestError(Exception):
 class PyxformMarkdown(object):
     """Transform markdown formatted xlsform to a pyxform survey object"""
 
-    def md_to_pyxform_survey(self, md_raw, kwargs=None, autoname=True):
+    def md_to_pyxform_survey(self, md_raw, kwargs=None, autoname=True, warnings=None):
         if kwargs is None:
             kwargs = {}
         if autoname:
@@ -69,16 +69,16 @@ class PyxformMarkdown(object):
         for sheet, contents in md_table_to_ss_structure(md):
             sheets[sheet] = list_to_dicts(contents)
 
-        return self._ss_structure_to_pyxform_survey(sheets, kwargs)
+        return self._ss_structure_to_pyxform_survey(sheets, kwargs, warnings=warnings)
 
     @staticmethod
-    def _ss_structure_to_pyxform_survey(ss_structure, kwargs):
+    def _ss_structure_to_pyxform_survey(ss_structure, kwargs, warnings=None):
         # using existing methods from the builder
-        imported_survey_json = workbook_to_json(ss_structure)
+        imported_survey_json = workbook_to_json(ss_structure, warnings=warnings)
         # ideally, when all these tests are working, this would be
         # refactored as well
         survey = create_survey_element_from_dict(imported_survey_json)
-        survey.name = kwargs.get("name")
+        survey.name = kwargs.get("name", "data")
         survey.title = kwargs.get("title")
         survey.id_string = kwargs.get("id_string")
 
@@ -137,11 +137,13 @@ class PyxformTestCase(PyxformMarkdown, TestCase):
 
         one or many of these string "matchers":
           * xml__contains: an array of strings which exist in the
-                resulting xml
+                resulting xml. [xml|model|instance|itext]_excludes are also supported.
           * error__contains: a list of strings which should exist in
                 the error
           * odk_validate_error__contains: list of strings; run_odk_validate
                 must be set
+          * xml__excludes: an array of strings which should not exist in the resulting
+               xml. [xml|model|instance|itext]_excludes are also supported.
 
         optional other parameters passed to pyxform:
           * errored: (bool) if the xlsform is not supposed to compile,
@@ -217,41 +219,19 @@ class PyxformTestCase(PyxformMarkdown, TestCase):
                 )
             for v_err in odk_validate_error__contains:
                 self.assertContains(
-                    e.args[0].decode("utf-8"),
-                    v_err,
-                    msg_prefix="odk_validate_error__contains",
+                    e.args[0], v_err, msg_prefix="odk_validate_error__contains"
                 )
         else:
             survey = True
 
         if survey:
 
-            def _check_contains(keyword):
-                contains_str = "%s__contains" % keyword
+            def _check(keyword, verb):
+                verb_str = "%s__%s" % (keyword, verb)
 
-                def check_content(content):
-                    text_arr = kwargs[contains_str]
-                    for i in text_arr:
-                        self.assertContains(content, i, msg_prefix=keyword)
-
-                return contains_str, check_content
-
-            if "body_contains" in kwargs or "body__contains" in kwargs:
-                raise SyntaxError(
-                    "Invalid parameter: 'body__contains'." "Use 'xml__contains' instead"
-                )
-
-            for code in ["xml", "instance", "model", "itext"]:
-                (code__str, checker) = _check_contains(code)
-                if kwargs.get(code__str):
-                    checker(
-                        ETree.tostring(xml_nodes[code], encoding="utf-8").decode(
-                            "utf-8"
-                        )
-                    )
-                bad_kwarg = "%s_contains" % code
+                bad_kwarg = "%s_%s" % (code, verb)
                 if bad_kwarg in kwargs:
-                    good_kwarg = "%s__contains" % code
+                    good_kwarg = "%s__%s" % (code, verb)
                     raise SyntaxError(
                         (
                             "'%s' is not a valid parameter. "
@@ -259,6 +239,34 @@ class PyxformTestCase(PyxformMarkdown, TestCase):
                         )
                         % (bad_kwarg, good_kwarg)
                     )
+
+                def check_content(content):
+                    text_arr = kwargs[verb_str]
+                    for i in text_arr:
+                        if verb == "contains":
+                            self.assertContains(content, i, msg_prefix=keyword)
+                        else:
+                            self.assertNotContains(content, i, msg_prefix=keyword)
+
+                return verb_str, check_content
+
+            if "body_contains" in kwargs or "body__contains" in kwargs:
+                raise SyntaxError(
+                    "Invalid parameter: 'body__contains'." "Use 'xml__contains' instead"
+                )
+
+            # guarantee that strings contain alphanumerically sorted attributes across Python versions
+            reorder_attributes(root)
+
+            for code in ["xml", "instance", "model", "itext"]:
+                for verb in ["contains", "excludes"]:
+                    (code__str, checker) = _check(code, verb)
+                    if kwargs.get(code__str):
+                        checker(
+                            ETree.tostring(xml_nodes[code], encoding="utf-8").decode(
+                                "utf-8"
+                            )
+                        )
 
         if survey is False and expecting_invalid_survey is False:
             raise PyxformTestError(
@@ -325,3 +333,27 @@ class PyxformTestCase(PyxformMarkdown, TestCase):
         self.assertEqual(
             real_count, 0, msg_prefix + "Response should not contain %s" % text_repr
         )
+
+
+def reorder_attributes(root):
+    """
+    Forces alphabetical ordering of all XML attributes to match pre Python 3.8 behavior.
+    In general, we should not rely on ordering, but changing all the tests is not
+    realistic at this moment.
+
+    See bottom of https://docs.python.org/3/library/xml.etree.elementtree.html#element-objects and
+    https://github.com/python/cpython/commit/a3697db0102b9b6747fe36009e42f9b08f0c1ea8 for more information.
+
+    NOTE: there's a similar ordering change made in utils.node. This one is also needed because in
+    assertPyxformXform, the survey is converted to XML and then read back in using ETree.fromstring. This
+    means that attribute ordering here is based on the attribute representation of xml.etree.ElementTree objects.
+    In utils.node, it is based on xml.dom.minidom.Element objects. See https://github.com/XLSForm/pyxform/issues/414.
+    """
+    for el in root.iter():
+        attrib = el.attrib
+        if len(attrib) > 1:
+            # Sort attributes. Attributes are represented as {namespace}name so attributes with explicit
+            # namespaces will always sort after those without explicit namespaces.
+            attribs = sorted(attrib.items())
+            attrib.clear()
+            attrib.update(attribs)

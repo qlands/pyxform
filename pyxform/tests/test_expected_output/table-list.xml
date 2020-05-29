@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
-<h:html xmlns="http://www.w3.org/2002/xforms" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:h="http://www.w3.org/1999/xhtml" xmlns:jr="http://openrosa.org/javarosa" xmlns:orx="http://openrosa.org/xforms" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+<h:html xmlns="http://www.w3.org/2002/xforms" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:h="http://www.w3.org/1999/xhtml" xmlns:jr="http://openrosa.org/javarosa" xmlns:orx="http://openrosa.org/xforms" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:odk="http://www.opendatakit.org/xforms">
   <h:head>
     <h:title>table-list</h:title>
-    <model>
+    <model odk:xforms-version="1.0.0">
       <itext>
         <translation default="true()" lang="default">
           <text id="/table-list/happy_sad_table/happy_sad_brian/sad:label">
@@ -47,13 +47,13 @@
       </instance>
       <bind nodeset="/table-list/intro" readonly="true()" type="string"/>
       <bind nodeset="/table-list/table_list_test2/generated_table_list_label_3" readonly="true()" type="string"/>
-      <bind nodeset="/table-list/table_list_test2/reserved_name_for_field_list_labels_4" type="select1"/>
-      <bind nodeset="/table-list/table_list_test2/table_list_3" type="select1"/>
-      <bind nodeset="/table-list/table_list_test2/table_list_4" type="select1"/>
+      <bind nodeset="/table-list/table_list_test2/reserved_name_for_field_list_labels_4" type="string"/>
+      <bind nodeset="/table-list/table_list_test2/table_list_3" type="string"/>
+      <bind nodeset="/table-list/table_list_test2/table_list_4" type="string"/>
       <bind nodeset="/table-list/happy_sad_table/generated_table_list_label_7" readonly="true()" type="string"/>
-      <bind nodeset="/table-list/happy_sad_table/reserved_name_for_field_list_labels_8" type="select"/>
-      <bind nodeset="/table-list/happy_sad_table/happy_sad_brian" type="select"/>
-      <bind nodeset="/table-list/happy_sad_table/happy_sad_michael" type="select"/>
+      <bind nodeset="/table-list/happy_sad_table/reserved_name_for_field_list_labels_8" type="string"/>
+      <bind nodeset="/table-list/happy_sad_table/happy_sad_brian" type="string"/>
+      <bind nodeset="/table-list/happy_sad_table/happy_sad_michael" type="string"/>
       <bind jr:preload="uid" nodeset="/table-list/meta/instanceID" readonly="true()" type="string"/>
     </model>
   </h:head>

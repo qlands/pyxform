@@ -1,5 +1,5 @@
 ===============
-pyxform v0.15.0
+pyxform v1.1.0
 ===============
 
 |circleci|  |appveyor| |codecov| |black|
@@ -11,13 +11,12 @@ pyxform v0.15.0
     :target: https://ci.appveyor.com/project/ukanga/pyxform
 
 .. |codecov| image:: https://codecov.io/github/XLSForm/pyxform/branch/master/graph/badge.svg
-	:target: https://codecov.io/github/XLSForm/pyxform
+    :target: https://codecov.io/github/XLSForm/pyxform
 
 .. |black| image:: https://img.shields.io/badge/code%20style-black-000000.svg
     :target: https://github.com/python/black
 
-pyxform is a Python library that makes writing XForms for ODK Collect and enketo
-easy by converting XLS(X) spreadsheets into XForms. It is used as a library in a number of tools including `the ODK online converter <http://opendatakit.org/xiframe/>`_ and `Ona <https://ona.io>`_.
+pyxform is a Python library that makes writing forms for ODK Collect and Enketo easy by converting XLSForms (Excel spreadsheets) into ODK XForms. The XLSForms format is used in a `number of tools <http://xlsform.org/en/#tools-that-support-xlsforms>`_.
 
 XLS(X) documents used as input must follow to the `XLSForm standard <http://xlsform.org/>`_ and the resulting output follows the `ODK XForms <https://github.com/opendatakit/xforms-spec>`_ standard.
 
@@ -77,15 +76,26 @@ You can then run xls2xform from the commandline::
 
     xls2xform path_to_XLSForm [output_path]
 
-Testing
-=======
-To make sure the install worked out, you can do the following::
+Development
+===========
+To set up for development/contributing::
 
-    pip install nose==1.0.0
+    pip install -r requirements.pip
+
+    python setup.py develop
 
     cd your-virtual-env-dir/src/pyxform
 
+You can run tests with::
+
     nosetests
+
+
+Before committing, make sure to format your code using `black`::
+
+    black pyxform
+
+If you are using a copy of black outside your virtualenv, make sure it is the same version as listed in requirements.pip.
 
 Documentation
 =============
@@ -104,28 +114,36 @@ Change Log
 Releasing pyxform
 =================
 
-1. Checkout a release branch from latest upstream master.
-2. Update ``CHANGES.txt`` with issues closed from the previous tagged release, e.g. https://github.com/XLSForm/pyxform/compare/v0.14.1...master.
-3. Update ``README.rst``, ``setup.py``, ``pyxform/__init__.py`` with the new release version number.
-4. Commit, push the branch, and initiate a pull request. Wait for tests to pass.
-5. Prepare a draft release, copy the changes noted in ``CHANGES.txt`` to the draft release. Set version number and the title for the release should include the date >
-6. When all tests are passing on the pull request, squash merge the pull request.
-7. Checkout the master branch and pull in latest upstream master::
+1. Make sure the version of ODK Validate in the repo is up-to-date::
 
-    $ git checkout master
-    $ git pull upstream master
-    $ git push
+    pyxform_validator_update odk update ODK-Validate-vx.x.x.jar
 
-8. Cleanup build and dist folders::
+2. Run all tests through Validate by setting the default for ``run_odk_validate`` to ``kwargs.get("run_odk_validate", True)`` in ``pyxform_test_case``.
+3. Draft a new GitHub release with the list of merged PRs. Follow the title and description pattern of the previous release.
+4. Checkout a release branch from latest upstream master.
+5. Update ``CHANGES.txt`` with the text of the draft release.
+6. Update ``README.rst``, ``setup.py``, ``pyxform/__init__.py`` with the new release version number.
+7. Commit, push the branch, and initiate a pull request. Wait for tests to pass, then merge the PR.
+8. In a clean new release only directory, checkout master. 
+9. Create a new virtualenv in this directory to ensure a clean Python environment::
 
-    $ rm -rf build dist pyxform.egg-info
+     mkvirtualenv pyxform-release
 
-9. Prepare ``sdist`` and ``bdist_wheel`` distributions::
+10. Install the development and release requirements::
 
-    $ python setup.py sdist bdist_wheel
+     pip install -r requirements.pip
+     pip install wheel twine
 
-10. Publish release to PyPI with ``twine``::
+11. Cleanup build and dist folders::
 
-    $ twine upload dist/pyxform-0.15.0-py2.py3-none-any.whl dist/pyxform-0.15.0.tar.gz
+     rm -rf build dist pyxform.egg-info
 
+12. Prepare ``sdist`` and ``bdist_wheel`` distributions::
 
+     python setup.py sdist bdist_wheel
+
+13. Publish release to PyPI with ``twine``::
+
+     twine upload dist/pyxform-*-py2.py3-none-any.whl dist/pyxform-*.tar.gz
+
+14. Tag the GitHub release and publish it.

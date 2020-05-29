@@ -24,10 +24,17 @@ JAVA_8 = """java version "1.8.0_211"
 Java(TM) SE Runtime Environment (build 1.8.0_211-b12)
 Java HotSpot(TM) 64-Bit Server VM (build 25.211-b12, mixed mode)
 """
-
 OPENJDK_11 = """openjdk version "11.0.3" 2019-04-16
 OpenJDK Runtime Environment (build 11.0.3+4)
 OpenJDK 64-Bit Server VM (build 11.0.3+4, mixed mode)
+"""
+OPENJDK_13 = """openjdk version "13" 2019-09-17
+OpenJDK Runtime Environment (build 13+33)
+OpenJDK 64-Bit Server VM (build 13+33, mixed mode, sharing)
+"""
+OPENJDK_9_INT = """openjdk version "9-internal"
+OpenJDK Runtime Environment (build 9-internal+0-2016-04-14-195246.buildd.src)
+OpenJDK 64-Bit Server VM (build 9-internal+0-2016-04-14-195246.buildd.src, mixed mode)
 """
 
 
@@ -60,4 +67,12 @@ class TestValidators(TestCase):
 
         with patch(mock_func) as mock_popen:
             mock_popen.return_value = (0, False, "", OPENJDK_11)
+            check_java_version()
+
+        with patch(mock_func) as mock_popen:
+            mock_popen.return_value = (0, False, "", OPENJDK_13)
+            check_java_version()
+
+        with patch(mock_func) as mock_popen:
+            mock_popen.return_value = (0, False, "", OPENJDK_9_INT)
             check_java_version()

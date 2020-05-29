@@ -16,7 +16,7 @@ from pyxform import builder
 from pyxform.utils import NSMAP, basestring
 
 logger = logging.getLogger(__name__)
-logger.addHandler(logging.NullHandler)
+logger.addHandler(logging.NullHandler())
 
 
 # {{{ http://code.activestate.com/recipes/573463/ (r7)
@@ -408,10 +408,12 @@ class XFormToDictBuilder:
         if "autoplay" in obj:
             question["control"].update({"autoplay": obj["autoplay"]})
         question_params = self._get_question_params_from_bindings(ref)
+
         if isinstance(question_params, dict):
             for k, v in iter(question_params.items()):
                 question[k] = v
-        # has to come after the above block
+
+        # Some values set from bindings are incorrect or incomplete. Correct them now.
         if "mediatype" in obj:
             question["type"] = obj["mediatype"].replace("/*", "")
         if "item" in obj:
@@ -450,6 +452,11 @@ class XFormToDictBuilder:
             question["type"] = question_type
         if type == "trigger":
             question["type"] = "acknowledge"
+        if type in [
+            "select1",
+            "select",
+        ]:  # Select bind type is 'string' https://github.com/XLSForm/pyxform/issues/168
+            question["type"] = self.QUESTION_TYPES[type]
         if question_type == "geopoint" and "hint" in question:
             del question["hint"]
         if "type" not in question and type:
@@ -567,7 +574,7 @@ class XFormToDictBuilder:
             lang = translation["lang"]
             label_list = translation["text"]
             for l in label_list:
-                if l["value"] == "-":  # skip blank label
+                if "value" not in l or l["value"] == "-":  # skip blank label
                     continue
                 if l["id"] == ref:
                     text = value = l["value"]
