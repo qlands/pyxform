@@ -7,6 +7,7 @@ from __future__ import print_function
 import codecs
 import os
 import re
+from re import split
 import tempfile
 import xml.etree.ElementTree as ETree
 from collections import defaultdict
@@ -67,7 +68,7 @@ def is_parent_a_repeat(survey, xpath):
 
 
 @lru_cache(maxsize=None)
-def share_same_repeat_parent(survey, xpath, context_xpath):
+def share_same_repeat_parent(survey, xpath, context_xpath, reference_parent=False):
     """
     Returns a tuple of the number of steps from the context xpath to the shared
     repeat parent and the xpath to the target xpath from the shared repeat
@@ -79,14 +80,20 @@ def share_same_repeat_parent(survey, xpath, context_xpath):
 
         returns (2, '/group_a/name')'
     """
-    context_parent = is_parent_a_repeat(survey, context_xpath)
-    xpath_parent = is_parent_a_repeat(survey, xpath)
-    if context_parent and xpath_parent and xpath_parent in context_parent:
-        context_parts = context_xpath[len(xpath_parent) + 1 :].split("/")
+
+    def _get_steps_and_target_xpath(context_parent, xpath_parent, include_parent=False):
         parts = []
         steps = 1
-        remainder_xpath = xpath[len(xpath_parent) :]
-        xpath_parts = xpath[len(xpath_parent) + 1 :].split("/")
+        if not include_parent:
+            remainder_xpath = xpath[len(xpath_parent) :]
+            context_parts = context_xpath[len(xpath_parent) + 1 :].split("/")
+            xpath_parts = xpath[len(xpath_parent) + 1 :].split("/")
+        else:
+            split_idx = len(xpath_parent.split("/"))
+            context_parts = context_xpath.split("/")[split_idx - 1 :]
+            xpath_parts = xpath.split("/")[split_idx - 1 :]
+            remainder_xpath = "/".join(xpath_parts)
+
         for index, item in enumerate(context_parts[:-1]):
             try:
                 if xpath[len(context_parent) + 1 :].split("/")[index] != item:
@@ -99,8 +106,35 @@ def share_same_repeat_parent(survey, xpath, context_xpath):
                 steps = len(context_parts[index - 1 :])
                 parts = xpath_parts[index - 1 :]
                 break
-
         return (steps, "/" + "/".join(parts) if parts else remainder_xpath)
+
+    context_parent = is_parent_a_repeat(survey, context_xpath)
+    xpath_parent = is_parent_a_repeat(survey, xpath)
+    if context_parent and xpath_parent and xpath_parent in context_parent:
+        include_parent = False
+        if not context_parent == xpath_parent and reference_parent:
+            context_shared_ancestor = is_parent_a_repeat(survey, context_parent)
+            if context_shared_ancestor == xpath_parent:
+                # Check if context_parent is a child repeat of the xpath_parent
+                # If the context_parent is a child of the xpath_parent reference the entire
+                # xpath_parent in the generated nodeset
+                include_parent = True
+                context_parent = context_shared_ancestor
+        return _get_steps_and_target_xpath(context_parent, xpath_parent, include_parent)
+    elif context_parent and xpath_parent:
+        # Check if context_parent and xpath_parent share a common
+        # repeat ancestor
+        context_shared_ancestor = is_parent_a_repeat(survey, context_parent)
+        xpath_shared_ancestor = is_parent_a_repeat(survey, xpath_parent)
+
+        if (
+            xpath_shared_ancestor
+            and context_shared_ancestor
+            and xpath_shared_ancestor == context_shared_ancestor
+        ):
+            return _get_steps_and_target_xpath(
+                context_shared_ancestor, xpath_shared_ancestor
+            )
 
     return (None, None)
 
@@ -115,6 +149,7 @@ class Survey(Section):
         {
             "_xpath": dict,
             "_created": datetime.now,  # This can't be dumped to json
+            "setvalues_by_triggering_ref": dict,
             "title": unicode,
             "id_string": unicode,
             "sms_keyword": unicode,
@@ -188,6 +223,16 @@ class Survey(Section):
         """
         self.validate()
         self._setup_xpath_dictionary()
+
+        for triggering_reference in self.setvalues_by_triggering_ref.keys():
+            if not (re.match(BRACKETED_TAG_REGEX, triggering_reference)):
+                raise PyXFormError(
+                    "Only references to other fields are allowed in the 'trigger' column."
+                )
+
+            # try to resolve reference and fail if can't
+            self.insert_xpaths(triggering_reference, self)
+
         body_kwargs = {}
         if hasattr(self, constants.STYLE) and getattr(self, constants.STYLE):
             body_kwargs["class"] = getattr(self, constants.STYLE)
@@ -199,6 +244,9 @@ class Survey(Section):
             node("h:body", *self.xml_control(), **body_kwargs),
             **nsmap
         )
+
+    def get_setvalues_for_question_name(self, question_name):
+        return self.setvalues_by_triggering_ref.get("${%s}" % question_name)
 
     @staticmethod
     def _generate_static_instances(list_name, choice_list):
@@ -213,12 +261,13 @@ class Survey(Section):
         """
         instance_element_list = []
         multi_language = isinstance(choice_list[0].get("label"), dict)
+        has_media = bool(choice_list[0].get("media"))
         for idx, choice in enumerate(choice_list):
             choice_element_list = []
             # Add a unique id to the choice element in case there is itext
             # it references
-            if multi_language:
-                itext_id = "-".join(["static_instance", list_name, str(idx)])
+            if multi_language or has_media:
+                itext_id = "-".join([list_name, str(idx)])
                 choice_element_list.append(node("itextId", itext_id))
 
             for name, value in sorted(choice.items()):
@@ -576,29 +625,41 @@ class Survey(Section):
 
         self._translations = defaultdict(dict)  # pylint: disable=W0201
         for element in self.iter_descendants():
-            for d in element.get_translations(self.default_language):
-                if "guidance_hint" in d["path"]:
-                    hint_path = d["path"].replace("guidance_hint", "hint")
-                    self._translations[d["lang"]][hint_path] = self._translations[
-                        d["lang"]
-                    ].get(hint_path, {})
-                    self._translations[d["lang"]][hint_path].update(
-                        {"guidance": d["text"]}
+            # Skip creation of translations for choices in filtered selects
+            # The creation of these translations is done futher below in this
+            # function
+            parent = element.get("parent")
+            if parent and not parent.get("choice_filter"):
+                for d in element.get_translations(self.default_language):
+                    translation_path = d["path"]
+                    form = "long"
+
+                    if "guidance_hint" in d["path"]:
+                        translation_path = d["path"].replace("guidance_hint", "hint")
+                        form = "guidance"
+
+                    self._translations[d["lang"]][
+                        translation_path
+                    ] = self._translations[d["lang"]].get(translation_path, {})
+
+                    self._translations[d["lang"]][translation_path].update(
+                        {
+                            form: {
+                                "text": d["text"],
+                                "output_context": d["output_context"],
+                            }
+                        }
                     )
-                else:
-                    self._translations[d["lang"]][d["path"]] = self._translations[
-                        d["lang"]
-                    ].get(d["path"], {})
-                    self._translations[d["lang"]][d["path"]].update({"long": d["text"]})
 
         # This code sets up translations for choices in filtered selects.
         for list_name, choice_list in self.choices.items():
             multi_language = isinstance(choice_list[0].get("label"), dict)
-            if not multi_language:
+            has_media = bool(choice_list[0].get("media"))
+            if not multi_language and not has_media:
                 continue
             for idx, choice in zip(range(len(choice_list)), choice_list):
                 for name, choice_value in choice.items():
-                    itext_id = "-".join(["static_instance", list_name, str(idx)])
+                    itext_id = "-".join([list_name, str(idx)])
                     if isinstance(choice_value, dict):
                         _setup_choice_translations(name, choice_value, itext_id)
                     elif name == "label":
@@ -635,14 +696,8 @@ class Survey(Section):
         {language : {element_xpath : {media_type : media}}}
         It matches the xform nesting order.
         """
-        if not self._translations:
-            self._translations = defaultdict(dict)  # pylint: disable=W0201
 
-        for survey_element in self.iter_descendants():
-
-            translation_key = survey_element.get_xpath() + ":label"
-            media_dict = survey_element.get("media")
-
+        def _set_up_media_translations(media_dict, translation_key):
             # This is probably papering over a real problem, but anyway,
             # in py3, sometimes if an item is on an xform with multiple
             # languages and the item only has media defined in # "default"
@@ -686,6 +741,19 @@ class Survey(Section):
 
                     translations_trans_key[media_type] = media
 
+        if not self._translations:
+            self._translations = defaultdict(dict)  # pylint: disable=W0201
+
+        for survey_element in self.iter_descendants():
+            # Skip set up of media for choices in filtered selects.
+            # Translations for the media content should have been set up
+            # in _setup_translations
+            parent = survey_element.get("parent")
+            if parent and not parent.get("choice_filter"):
+                translation_key = survey_element.get_xpath() + ":label"
+                media_dict = survey_element.get("media")
+                _set_up_media_translations(media_dict, translation_key)
+
     def itext(self):
         """
         This function creates the survey's itext nodes from _translations
@@ -708,12 +776,14 @@ class Survey(Section):
                     raise Exception()
 
                 for media_type, media_value in content.items():
-                    # There is a odk/jr bug where hints can't have a value
-                    # for the "form" attribute.
-                    # This is my workaround.
-                    if label_type == "hint":
+                    if isinstance(media_value, dict):
+                        value, output_inserted = self.insert_output_values(
+                            media_value["text"], context=media_value["output_context"]
+                        )
+                    else:
                         value, output_inserted = self.insert_output_values(media_value)
 
+                    if label_type == "hint":
                         if media_type == "guidance":
                             itext_nodes.append(
                                 node(
@@ -730,14 +800,12 @@ class Survey(Section):
                         continue
 
                     if media_type == "long":
-                        value, output_inserted = self.insert_output_values(media_value)
                         # I'm ignoring long types for now because I don't know
                         # how they are supposed to work.
                         itext_nodes.append(
                             node("value", value, toParseString=output_inserted)
                         )
                     elif media_type == "image":
-                        value, output_inserted = self.insert_output_values(media_value)
                         if value != "-":
                             itext_nodes.append(
                                 node(
@@ -748,7 +816,6 @@ class Survey(Section):
                                 )
                             )
                     else:
-                        value, output_inserted = self.insert_output_values(media_value)
                         if value != "-":
                             itext_nodes.append(
                                 node(
@@ -803,7 +870,9 @@ class Survey(Section):
                 else:
                     self._xpath[element.name] = element.get_xpath()
 
-    def _var_repl_function(self, matchobj, context, use_current=False):
+    def _var_repl_function(
+        self, matchobj, context, use_current=False, reference_parent=False
+    ):
         """
         Given a dictionary of xpaths, return a function we can use to
         replace ${varname} with the xpath to varname.
@@ -830,10 +899,15 @@ class Survey(Section):
         ):
             xpath, context_xpath = self._xpath[name], context.get_xpath()
             # share same root i.e repeat_a from /data/repeat_a/...
-            if xpath.split("/")[2] == context_xpath.split("/")[2]:
+            if (
+                len(context_xpath.split("/")) > 2
+                and xpath.split("/")[2] == context_xpath.split("/")[2]
+            ):
                 # if context xpath and target xpath fall under the same
                 # repeat use relative xpath referencing.
-                steps, ref_path = share_same_repeat_parent(self, xpath, context_xpath)
+                steps, ref_path = share_same_repeat_parent(
+                    self, xpath, context_xpath, reference_parent
+                )
                 if steps:
                     ref_path = ref_path if ref_path.endswith(name) else "/%s" % name
                     prefix = " current()/" if use_current else " "
@@ -845,13 +919,15 @@ class Survey(Section):
         )
         return " " + last_saved_prefix + self._xpath[name] + " "
 
-    def insert_xpaths(self, text, context, use_current=False):
+    def insert_xpaths(self, text, context, use_current=False, reference_parent=False):
         """
         Replace all instances of ${var} with the xpath to var.
         """
 
         def _var_repl_function(matchobj):
-            return self._var_repl_function(matchobj, context, use_current)
+            return self._var_repl_function(
+                matchobj, context, use_current, reference_parent
+            )
 
         return re.sub(BRACKETED_TAG_REGEX, _var_repl_function, unicode(text))
 

@@ -589,8 +589,10 @@ def workbook_to_json(
     # Rows from the survey sheet that should be nested in meta
     survey_meta = []
 
-    repeat_behavior_warning_added = False
     dynamic_default_warning_added = False
+
+    # row by row, validate questions, throwing errors and adding warnings
+    # where needed.
     for row in survey_sheet:
         row_number += 1
         if stack[-1] is not None:
@@ -819,11 +821,21 @@ def workbook_to_json(
 
         if question_type == "calculate":
             calculation = row.get("bind", {}).get("calculate")
-            if not calculation:
+            question_default = row.get("default")
+            if not calculation and not (
+                question_default and default_is_dynamic(question_default, question_type)
+            ):
                 raise PyXFormError(
                     row_format_string % row_number + " Missing calculation."
                 )
-
+        if question_type in constants.DEPRECATED_DEVICE_ID_METADATA_FIELDS:
+            warnings.append(
+                (row_format_string % row_number)
+                + " "
+                + question_type
+                + " is no longer supported on most devices. "
+                "Only old versions of Collect on Android versions older than 11 still support it."
+            )
         # Check if the question is actually a setting specified
         # on the survey sheet
         settings_type = aliases.settings_header.get(question_type)
@@ -883,6 +895,11 @@ def workbook_to_json(
             constants.LABEL not in row
             and row.get(constants.MEDIA) is None
             and question_type not in aliases.label_optional_types
+            and not row.get("bind", {}).get("calculate")
+            and not (
+                row.get("default")
+                and default_is_dynamic(row.get("default"), question_type)
+            )
         ):
             # TODO: Should there be a default label?
             #      Not sure if we should throw warnings for groups...
@@ -905,19 +922,6 @@ def workbook_to_json(
                 # until an end command is encountered.
                 control_type = aliases.control[parse_dict["type"]]
                 control_name = question_name
-
-                if (
-                    control_type == constants.REPEAT
-                    and not repeat_behavior_warning_added
-                ):
-                    warnings.append(
-                        "Repeat behavior has changed. Previously, some clients like "
-                        "ODK Collect prompted users to add the first repeat. Now, "
-                        "the user will only be prompted to add repeats after the first "
-                        "one. Representing 0 repetitions will require changing the form "
-                        "design. Read more at http://xlsform.org#representing-zero-repeats."
-                    )
-                    repeat_behavior_warning_added = True
 
                 new_json_dict = row.copy()
                 new_json_dict[constants.TYPE] = control_type
@@ -1083,6 +1087,7 @@ def workbook_to_json(
                     list_name not in choices
                     and select_type != "select one external"
                     and file_extension not in [".csv", ".xml"]
+                    and not re.match(r"\$\{(.*?)\}", list_name)
                 ):
                     if not choices:
                         raise PyXFormError(
@@ -1191,7 +1196,9 @@ def workbook_to_json(
                 ):
                     new_json_dict["itemset"] = list_name
                     json_dict["choices"] = choices
-                elif file_extension in [".csv", ".xml"]:
+                elif file_extension in [".csv", ".xml"] or re.match(
+                    r"\$\{(.*?)\}", list_name
+                ):
                     new_json_dict["itemset"] = list_name
                 else:
                     new_json_dict["list_name"] = list_name
@@ -1273,6 +1280,25 @@ def workbook_to_json(
 
                 new_dict["bind"] = new_dict.get("bind", {})
                 new_dict["bind"].update({"orx:max-pixels": parameters["max-pixels"]})
+            parent_children_array.append(new_dict)
+            continue
+
+        if question_type == "audio":
+            new_dict = row.copy()
+            parameters = get_parameters(row.get("parameters", ""), ["quality"])
+
+            if "quality" in parameters.keys():
+                if parameters["quality"] not in [
+                    "voice-only",
+                    "low",
+                    "normal",
+                    "external",
+                ]:
+                    raise PyXFormError("Invalid value for quality.")
+
+                new_dict["bind"] = new_dict.get("bind", {})
+                new_dict["bind"].update({"odk:quality": parameters["quality"]})
+
             parent_children_array.append(new_dict)
             continue
 

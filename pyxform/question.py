@@ -3,6 +3,7 @@
 XForm Survey element classes for different question types.
 """
 import os.path
+import re
 
 from pyxform.errors import PyXFormError
 from pyxform.question_type_dictionary import QUESTION_TYPE_DICT
@@ -31,6 +32,47 @@ class Question(SurveyElement):
         return node(self.name, **attributes)
 
     def xml_control(self):
+        if ("calculate" in self.bind or self.trigger) and not (self.label or self.hint):
+            nested_setvalues = self.get_root().get_setvalues_for_question_name(
+                self.name
+            )
+            if nested_setvalues:
+                for setvalue in nested_setvalues:
+                    msg = (
+                        "The question ${%s} is not user-visible so it can't be used as a calculation trigger for question ${%s}."
+                        % (self.name, setvalue[0])
+                    )
+                    raise PyXFormError(msg)
+            return None
+
+        xml_node = self.build_xml()
+
+        if xml_node:
+            self.nest_setvalues(xml_node)
+
+        return xml_node
+
+    def nest_setvalues(self, xml_node):
+        nested_setvalues = self.get_root().get_setvalues_for_question_name(self.name)
+
+        if nested_setvalues:
+            for setvalue in nested_setvalues:
+                setvalue_attrs = {
+                    "ref": self.get_root()
+                    .insert_xpaths("${%s}" % setvalue[0], self.get_root())
+                    .strip(),
+                    "event": "xforms-value-changed",
+                }
+                if not (setvalue[1] == ""):
+                    setvalue_attrs["value"] = self.get_root().insert_xpaths(
+                        setvalue[1], self
+                    )
+
+                setvalue_node = node("setvalue", **setvalue_attrs)
+
+                xml_node.appendChild(setvalue_node)
+
+    def build_xml(self):
         return None
 
 
@@ -40,7 +82,7 @@ class InputQuestion(Question):
     dates, geopoints, barcodes ...
     """
 
-    def xml_control(self):
+    def build_xml(self):
         control_dict = self.control
         label_and_hint = self.xml_label_and_hint()
         survey = self.get_root()
@@ -66,7 +108,7 @@ class InputQuestion(Question):
 
 
 class TriggerQuestion(Question):
-    def xml_control(self):
+    def build_xml(self):
         control_dict = self.control
         survey = self.get_root()
         # Resolve field references in attributes
@@ -80,7 +122,7 @@ class UploadQuestion(Question):
     def _get_media_type(self):
         return self.control["mediatype"]
 
-    def xml_control(self):
+    def build_xml(self):
         control_dict = self.control
         survey = self.get_root()
         # Resolve field references in attributes
@@ -133,7 +175,7 @@ class MultipleChoiceQuestion(Question):
         for choice in descendants:
             choice.validate()
 
-    def xml_control(self):
+    def build_xml(self):
         assert self.bind["type"] in ["string", "odk:rank"]
         survey = self.get_root()
         control_dict = self.control.copy()
@@ -147,6 +189,7 @@ class MultipleChoiceQuestion(Question):
             result.appendChild(element)
 
         choices = survey.get("choices")
+        multi_language = False
         if choices is not None and len(choices) > 0:
             first_choices = next(iter(choices.values()))
             multi_language = isinstance(first_choices[0].get("label"), dict)
@@ -156,18 +199,44 @@ class MultipleChoiceQuestion(Question):
         if self["itemset"] and isinstance(self["itemset"], basestring):
             choice_filter = self.get("choice_filter")
             itemset, file_extension = os.path.splitext(self["itemset"])
+            has_media = False
+            is_previous_question = bool(re.match(r"^\${.*}$", self.get("itemset")))
+
+            if choices.get(itemset):
+                has_media = bool(choices[itemset][0].get("media"))
+
             if file_extension in [".csv", ".xml"]:
                 itemset = itemset
                 itemset_label_ref = "label"
             else:
-                if not multi_language:
+                if not multi_language and not has_media:
                     itemset = self["itemset"]
                     itemset_label_ref = "label"
                 else:
                     itemset = self["itemset"]
                     itemset_label_ref = "jr:itext(itextId)"
-            nodeset = "instance('" + itemset + "')/root/item"
-            choice_filter = survey.insert_xpaths(choice_filter, self, True)
+
+            choice_filter = survey.insert_xpaths(choice_filter, self, True, True)
+            if is_previous_question:
+                path = (
+                    survey.insert_xpaths(self["itemset"], self, reference_parent=True)
+                    .strip()
+                    .split("/")
+                )
+                nodeset = "/".join(path[:-1])
+                itemset_label_ref = path[-1]
+                if choice_filter:
+                    choice_filter = choice_filter.replace(
+                        "current()/" + nodeset, "."
+                    ).replace(nodeset, ".")
+                else:
+                    # Choices must have a value. Filter out repeat instances without
+                    # an answer for the linked question
+                    name = path[-1]
+                    choice_filter = f"./{name} != ''"
+            else:
+                nodeset = "instance('" + itemset + "')/root/item"
+
             if choice_filter:
                 nodeset += "[" + choice_filter + "]"
 
@@ -195,8 +264,9 @@ class MultipleChoiceQuestion(Question):
             ]
             result.appendChild(node("itemset", *itemset_children, nodeset=nodeset))
         else:
-            for n in [o.xml() for o in self.children]:
-                result.appendChild(n)
+            for child in self.children:
+                result.appendChild(child.xml())
+
         return result
 
 
@@ -250,7 +320,7 @@ class OsmUploadQuestion(UploadQuestion):
         tag = Tag(**kwargs)
         self.add_child(tag)
 
-    def xml_control(self):
+    def build_xml(self):
         control_dict = self.control
         control_dict["ref"] = self.get_xpath()
         control_dict["mediatype"] = self._get_media_type()
@@ -263,12 +333,7 @@ class OsmUploadQuestion(UploadQuestion):
 
 
 class RangeQuestion(Question):
-    """
-    This control string is the same for: strings, integers, decimals,
-    dates, geopoints, barcodes ...
-    """
-
-    def xml_control(self):
+    def build_xml(self):
         control_dict = self.control
         label_and_hint = self.xml_label_and_hint()
         survey = self.get_root()
